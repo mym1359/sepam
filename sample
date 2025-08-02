@@ -1,0 +1,147 @@
+"""
+Sepam - Intelligent Banking Customer Credit Assessment System
+This system uses machine learning and AI algorithms to evaluate customer creditworthiness.
+
+Key Features:
+- Customer financial data analysis
+- Credit risk prediction
+- Fraud pattern detection
+- Intelligent credit scoring
+"""
+
+import pandas as pd
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, classification_report
+import joblib
+import numpy as np
+
+class SepamCreditSystem:
+    def __init__(self):
+        self.model = None
+        self.features = [
+            'age', 
+            'monthly_income', 
+            'credit_history', 
+            'current_loans', 
+            'debt_amount', 
+            'debt_to_income_ratio',
+            'violation_history',
+            'fixed_assets'
+        ]
+        self.target = 'credit_risk'
+        
+    def load_data(self, filepath):
+        """Load customer data from CSV file"""
+        try:
+            data = pd.read_csv(filepath)
+            print("Data loaded successfully.")
+            return data
+        except Exception as e:
+            print(f"Error loading data: {e}")
+            return None
+    
+    def preprocess_data(self, data):
+        """Preprocess customer data"""
+        # Fill missing values
+        data = data.fillna({
+            'monthly_income': data['monthly_income'].median(),
+            'credit_history': 0,
+            'current_loans': 0
+        })
+        
+        # Convert categorical variables to numerical
+        data['credit_risk'] = data['credit_risk'].map({'low': 0, 'medium': 1, 'high': 2})
+        
+        return data
+    
+    def train_model(self, data):
+        """Train the machine learning model"""
+        X = data[self.features]
+        y = data[self.target]
+        
+        # Split data into training and test sets
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=0.2, random_state=42
+        )
+        
+        # Create and train the model
+        self.model = RandomForestClassifier(n_estimators=100, random_state=42)
+        self.model.fit(X_train, y_train)
+        
+        # Evaluate the model
+        y_pred = self.model.predict(X_test)
+        accuracy = accuracy_score(y_test, y_pred)
+        report = classification_report(y_test, y_pred, target_names=['low', 'medium', 'high'])
+        
+        print(f"Model accuracy: {accuracy:.2f}")
+        print("Classification report:\n", report)
+        
+        return accuracy
+    
+    def predict_risk(self, customer_data):
+        """Predict credit risk for a new customer"""
+        if self.model is None:
+            raise Exception("Model not trained. Please train the model first.")
+            
+        input_data = pd.DataFrame([customer_data], columns=self.features)
+        prediction = self.model.predict(input_data)[0]
+        risk_levels = {0: 'low', 1: 'medium', 2: 'high'}
+        
+        return {
+            'credit_score': int(np.max(self.model.predict_proba(input_data)) * 100),
+            'risk_level': risk_levels[prediction],
+            'important_features': dict(zip(
+                self.features, 
+                self.model.feature_importances_.round(3)
+            ))
+        }
+    
+    def save_model(self, filepath):
+        """Save the trained model"""
+        if self.model is None:
+            raise Exception("No model to save.")
+            
+        joblib.dump(self.model, filepath)
+        print(f"Model successfully saved to {filepath}")
+    
+    def load_trained_model(self, filepath):
+        """Load a trained model"""
+        self.model = joblib.load(filepath)
+        print("Model loaded successfully.")
+
+
+# Example usage of Sepam system
+if __name__ == "__main__":
+    # Initialize the system
+    sepam = SepamCreditSystem()
+    
+    # Load sample data (in a real project, this would come from bank database)
+    data = sepam.load_data("data/customer_data.csv")
+    
+    if data is not None:
+        # Preprocess the data
+        processed_data = sepam.preprocess_data(data)
+        
+        # Train the model
+        sepam.train_model(processed_data)
+        
+        # Save the trained model
+        sepam.save_model("models/sepam_credit_model.pkl")
+        
+        # Predict for a new customer
+        new_customer = {
+            'age': 35,
+            'monthly_income': 15000000,
+            'credit_history': 5,
+            'current_loans': 1,
+            'debt_amount': 5000000,
+            'debt_to_income_ratio': 0.33,
+            'violation_history': 0,
+            'fixed_assets': 200000000
+        }
+        
+        prediction = sepam.predict_risk(new_customer)
+        print("\nNew customer credit assessment results:")
+        for key, value in prediction.items():
+            print(f"{key}: {value}")
